@@ -19,3 +19,9 @@
 
 # Go workspace file
 go.work
+
+# Local
+.editorconfig
+.vscode
+*.db
+api-test
