@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"example.com/event-booking/models"
-	"example.com/event-booking/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -33,27 +32,15 @@ func getEvents(context *gin.Context) {
 }
 
 func createEvent(context *gin.Context) {
-	token := context.Request.Header.Get("Authorization")
-
-	if token == "" {
-		context.JSON(http.StatusUnauthorized, gin.H{"message": "Not Authorized."})
-		return
-	}
-
-	userId, err := utils.VerifyToken(token)
-
-	if err != nil {
-		context.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
-		return
-	}
 
 	var event models.Event
-	err = context.ShouldBindJSON(&event)
+	err := context.ShouldBindJSON(&event)
 
 	if err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
+	userId := context.GetInt64("userId")
 	event.UserID = int(userId)
 
 	err = event.Save()
@@ -66,17 +53,26 @@ func createEvent(context *gin.Context) {
 }
 
 func updateEvent(context *gin.Context) {
+
 	eventId, err := strconv.ParseInt(context.Param("id"), 10, 64)
 	if err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
 
-	_, err = models.GetEventByID(eventId)
+	userId := context.GetInt64("userId")
+	event, err := models.GetEventByID(eventId)
+
 	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"message": err})
+		context.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
 		return
 	}
+
+	if event.UserID != int(userId) {
+		context.JSON(http.StatusUnauthorized, gin.H{"message": "Not authorized to update event"})
+		return
+	}
+
 	var updatedEvent models.Event
 	err = context.ShouldBindJSON(&updatedEvent)
 	if err != nil {
@@ -99,11 +95,20 @@ func deleteEvent(context *gin.Context) {
 		context.JSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
+
+	userId := context.GetInt64("userId")
 	event, err := models.GetEventByID(eventId)
+
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"message": err})
 		return
 	}
+
+	if event.UserID != int(userId) {
+		context.JSON(http.StatusUnauthorized, gin.H{"message": "Not authorized to delete event"})
+		return
+	}
+
 	err = event.Delete()
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{"message": "Could not delete the event"})
