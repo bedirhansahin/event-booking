@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"example.com/event-booking/models"
+	"example.com/event-booking/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,17 +33,34 @@ func getEvents(context *gin.Context) {
 }
 
 func createEvent(context *gin.Context) {
-	var event models.Event
-	err := context.ShouldBindJSON(&event)
+	token := context.Request.Header.Get("Authorization")
 
-	if err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{"message": err})
+	if token == "" {
+		context.JSON(http.StatusUnauthorized, gin.H{"message": "Not Authorized."})
 		return
 	}
-	event.UserID = 1
-	err = event.Save()
+
+	userId, err := utils.VerifyToken(token)
+
 	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{"message": err})
+		context.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
+		return
+	}
+
+	var event models.Event
+	err = context.ShouldBindJSON(&event)
+
+	if err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	event.UserID = int(userId)
+
+	err = event.Save()
+
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
+		return
 	}
 	context.JSON(http.StatusCreated, gin.H{"message": "Event Created", "event": event})
 }
